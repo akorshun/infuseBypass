@@ -1,0 +1,39 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build framework
+        run: |
+          xcodebuild build \
+            -project InfuseBypass.xcodeproj \
+            -scheme InfuseBypass \
+            -destination 'generic/platform=tvOS' \
+            -configuration Release \
+            -derivedDataPath "$GITHUB_WORKSPACE/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Archive framework
+        run: |
+          FRAMEWORK=$(find DerivedData -name "InfuseBypass.framework" -type d | head -1)
+          echo "Framework path: $FRAMEWORK"
+          zip -r InfuseBypass.framework.zip "$FRAMEWORK"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: InfuseBypass.framework.zip
+          generate_release_notes: true
