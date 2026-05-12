@@ -50,8 +50,8 @@ jobs:
 
       - name: Patch IPA
         run: |
-          # Locate framework and IPA
-          FRAMEWORK=$(find DerivedData -name "InfuseBypass.framework" -type d | head -1)
+          # Locate framework (Products only, not TBD stubs) and IPA
+          FRAMEWORK=$(find DerivedData/Build/Products -name "InfuseBypass.framework" -type d | head -1)
           IPA=$(find orig_ipa -name "*.ipa" | head -1)
           echo "Framework: $FRAMEWORK"
           echo "IPA: $IPA"
@@ -63,9 +63,9 @@ jobs:
           # Copy framework into app bundle
           cp -r "$FRAMEWORK" Payload_work/Payload/Infuse.app/Frameworks/
 
-          # Insert dylib load command (outputs Infuse_patched, then rename)
+          # Insert dylib load command; pipe 'yes' to auto-confirm fat binary prompt
           cd Payload_work/Payload/Infuse.app
-          insert_dylib \
+          yes | insert_dylib \
             --overwrite \
             @executable_path/Frameworks/InfuseBypass.framework/InfuseBypass \
             Infuse
