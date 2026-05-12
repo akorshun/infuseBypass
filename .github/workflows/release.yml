@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build framework
+      - name: Build InfuseBypass.framework
         run: |
           xcodebuild build \
             -project InfuseBypass.xcodeproj \
@@ -26,14 +26,59 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: Archive framework
+      - name: Build insert_dylib
         run: |
-          FRAMEWORK=$(find DerivedData -name "InfuseBypass.framework" -type d | head -1)
-          echo "Framework path: $FRAMEWORK"
-          zip -r InfuseBypass.framework.zip "$FRAMEWORK"
+          git clone https://github.com/tyilo/insert_dylib.git
+          cd insert_dylib
+          xcodebuild build \
+            -project insert_dylib.xcodeproj \
+            -scheme insert_dylib \
+            -configuration Release \
+            -derivedDataPath "$GITHUB_WORKSPACE/insert_dylib_build"
+          TOOL=$(find "$GITHUB_WORKSPACE/insert_dylib_build" -name "insert_dylib" -type f | head -1)
+          cp "$TOOL" /usr/local/bin/insert_dylib
+          chmod +x /usr/local/bin/insert_dylib
 
-      - name: Create release
+      - name: Download original IPA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ipa-source \
+            --repo ${{ github.repository }} \
+            --pattern "*.ipa" \
+            --dir orig_ipa
+
+      - name: Patch IPA
+        run: |
+          # Locate framework and IPA
+          FRAMEWORK=$(find DerivedData -name "InfuseBypass.framework" -type d | head -1)
+          IPA=$(find orig_ipa -name "*.ipa" | head -1)
+          echo "Framework: $FRAMEWORK"
+          echo "IPA: $IPA"
+
+          # Extract IPA
+          mkdir -p Payload_work
+          unzip -q "$IPA" -d Payload_work
+
+          # Copy framework into app bundle
+          cp -r "$FRAMEWORK" Payload_work/Payload/Infuse.app/Frameworks/
+
+          # Insert dylib load command
+          cd Payload_work/Payload/Infuse.app
+          insert_dylib \
+            @executable_path/Frameworks/InfuseBypass.framework/InfuseBypass \
+            Infuse \
+            --inplace
+          cd "$GITHUB_WORKSPACE"
+
+          # Repack IPA
+          cd Payload_work
+          zip -qr ../InfusePro8_tvOS_sideload_patched.ipa Payload
+          cd "$GITHUB_WORKSPACE"
+
+      - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: InfuseBypass.framework.zip
+          files: |
+            InfusePro8_tvOS_sideload_patched.ipa
           generate_release_notes: true
