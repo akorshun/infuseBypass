@@ -60,15 +60,19 @@ jobs:
           mkdir -p Payload_work
           unzip -q "$IPA" -d Payload_work
 
-          # Fix CFBundleName: underscores are rejected by Apple's addAppId API
-          INFOPLIST="Payload_work/Payload/Infuse.app/Info.plist"
-          BUNDLE_NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$INFOPLIST" 2>/dev/null || true)
-          echo "CFBundleName before: $BUNDLE_NAME"
-          if [[ "$BUNDLE_NAME" == *"_"* ]]; then
-            FIXED="${BUNDLE_NAME//_/ }"
-            /usr/libexec/PlistBuddy -c "Set :CFBundleName $FIXED" "$INFOPLIST"
-            echo "CFBundleName fixed: $FIXED"
-          fi
+          # Fix CFBundleName in all plists (main app + extensions like tv_shelf.appex)
+          # Underscores are rejected by Apple's addAppId API
+          find Payload_work -name "Info.plist" | while read plist; do
+            plutil -convert xml1 "$plist" 2>/dev/null || true
+            for KEY in CFBundleName CFBundleDisplayName; do
+              VAL=$(/usr/libexec/PlistBuddy -c "Print :$KEY" "$plist" 2>/dev/null || true)
+              if [[ "$VAL" == *"_"* ]]; then
+                FIXED="${VAL//_/ }"
+                /usr/libexec/PlistBuddy -c "Set :$KEY $FIXED" "$plist"
+                echo "Fixed $KEY in $plist: '$VAL' -> '$FIXED'"
+              fi
+            done
+          done
 
           # Copy framework into app bundle
           cp -r "$FRAMEWORK" Payload_work/Payload/Infuse.app/Frameworks/
