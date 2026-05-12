@@ -63,12 +63,13 @@ jobs:
           # Copy framework into app bundle
           cp -r "$FRAMEWORK" Payload_work/Payload/Infuse.app/Frameworks/
 
-          # Insert dylib load command
+          # Insert dylib load command (outputs Infuse_patched, then rename)
           cd Payload_work/Payload/Infuse.app
           insert_dylib \
+            --overwrite \
             @executable_path/Frameworks/InfuseBypass.framework/InfuseBypass \
-            Infuse \
-            --inplace
+            Infuse
+          mv Infuse_patched Infuse
           cd "$GITHUB_WORKSPACE"
 
           # Repack IPA
